@@ -2,12 +2,13 @@
 """
 This module contains tools that have been helpful for working with histological
 image files, including reading the image annotation files, making the target
-image, and making training and test datasets.
+image.
 
 """
 
 import cv2
 import xml.etree.ElementTree as et
+from glob import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -42,11 +43,21 @@ def read_annos_xml(filename):
     return np.asarray(x_vert), np.asarray(y_vert)
 
 
-def make_target_image(x_vert, y_vert, im_size):
+def _make_target_image(x_vert, y_vert, im_size):
     """
+    This create an RGB image of im_size where the red channel is 1.0 for all
+    "background" pixels; the blue channel is 1.0 for all "nuclei" pixels; and
+    the green channel is 1.0 for all "boundary" pixels. The boundary pixels
+    are described by x_vert, y_vert vertices of a polyline around each nuclei.
 
-    :param ndarray x_vert:
-    :param ndarray y_vert:
+    This so called target image defines the classification for each pixel in
+    the original image.  The target image is the desired result that will be
+    used to train a decoder to classify all the pixels of the original image.
+
+    :param ndarray x_vert: x-component of vertices of polyline around each
+        nuclei boundary.  Obtained from read_annos_xml().
+    :param ndarray y_vert:  y-component of vertices of polyline around each
+        nuclei boundary.  Obtained from read_annos_xml().
     :param tuple im_size:
     :return: ndarray im
     """
@@ -92,25 +103,52 @@ def make_target_image(x_vert, y_vert, im_size):
     return im
 
 
+def make_target_images(anno_folder, target_folder, im_size):
+    """
+    This will make a target image for each of the annotation files found in
+    <anno_folder>.  Resulting target images are written as tiff files to
+    <target_folder>.
+
+    :param str anno_folder:
+    :param str target_folder:
+    :param tuple im_size:
+    :return: none
+    """
+    filenames = glob(os.path.join(anno_folder, '*.xml'), recursive=False)
+    for anno_file in filenames:
+        x_vert, y_vert = read_annos_xml(anno_file)
+        im_target = _make_target_image(x_vert, y_vert, im_size)
+        # convert to uint8...
+        im_target = (im_target*255).astype(dtype=np.uint8)
+        filename, _ = os.path.splitext(os.path.basename(anno_file))
+        target_filename = os.path.join(target_folder, filename+'.tif')
+        tifffile.imsave(target_filename, im_target, photometric='rgb')
+
+
+
 if __name__ == "__main__":
     '''
     This performs a small verification test...
     '''
     path = '/shared/Projects/nuclei_segmentation/Images/Kumar_images/'
     anno_file = os.path.join(path, 'Annotations/TCGA-18-5592-01Z-00-DX1.xml')
-    image_file = os.path.join(path, 'TCGA-18-5592-01Z-00-DX1.tif')
-    x_vert, y_vert = read_annos_xml(anno_file)
+    image_file = os.path.join(path, 'deflated/TCGA-18-5592-01Z-00-DX1.tif')
 
+    anno_folder = os.path.join(path, 'Annotations/')
+    target_folder = os.path.join(path, 'target/')
+    make_target_images(anno_folder, target_folder, (1000,1000))
+
+    x_vert, y_vert = read_annos_xml(anno_file)
     im_slide = tifffile.imread(image_file)
     im_size = im_slide.shape[0:2]
-    im_target = make_target_image(x_vert, y_vert, im_size)
+    im_target = _make_target_image(x_vert, y_vert, im_size)
     # copy just the boundary image and make everything else transparent...
     im_boundary = np.zeros(im_size + (4,))  # RGBA canvas
     im_boundary[:, :, 1] = im_target[:, :, 1]  # copy the green boundary channel
     im_boundary[:, :, 3] = im_target[:, :, 1]  # alpha channel...boundary opaque
 
     plt.imshow(im_slide)
-    plt.imshow(im_boundary)  # overly the boundary on the slide for verification
+    plt.imshow(im_boundary)  # overlay the boundary on the slide for verification
     plt.show()
 
     plt.imshow(im_target)  # plot target image in a new figure.

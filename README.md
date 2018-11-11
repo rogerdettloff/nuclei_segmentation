@@ -10,5 +10,7 @@ See also:
 
 [U-Net: Convolutional Networks for Biomedical Image Segmentation](https://arxiv.org/pdf/1505.04597.pdf)
 
-### Example image illustrating promising results:
+### Example images illustrating promising results:
 ![image](https://user-images.githubusercontent.com/6138503/47751436-fc1b2f80-dc4e-11e8-853f-a2412a28bd2e.png)
+
+![image](https://user-images.githubusercontent.com/6138503/48308884-3bd0f980-e522-11e8-9c62-fe0483cb5cf8.png)
